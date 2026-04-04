@@ -2,22 +2,15 @@
 
 import React from 'react';
 import { VelocityBadge } from './VelocityBadge';
+import { TrendingPost } from '@/lib/nostr';
 
 interface TrendingPostCardProps {
-  postId: string;
-  satsPerHour: number;
-  zapsPerHour: number;
-  velocityTrend?: 'rising' | 'falling' | 'stable';
-  onZap?: (postId: string) => void;
+  post: TrendingPost;
+  onZap?: (postId: string, amountSats: number) => void;
 }
 
-export function TrendingPostCard({
-  postId,
-  satsPerHour,
-  zapsPerHour,
-  velocityTrend = 'stable',
-  onZap,
-}: TrendingPostCardProps) {
+export function TrendingPostCard({ post, onZap }: TrendingPostCardProps) {
+  const { postId, satsPerHour, zapsPerHour, velocityTrend, content, recipientNpub } = post;
   const shortId = `${postId.slice(0, 12)}...${postId.slice(-8)}`;
 
   return (
@@ -38,16 +31,69 @@ export function TrendingPostCard({
         />
       </div>
 
-      <div
-        style={{
-          color: 'var(--text-secondary)',
-          fontSize: '14px',
-          marginBottom: '16px',
-          fontFamily: 'monospace',
-        }}
-      >
-        Post ID: {shortId}
-      </div>
+      {/* Post content */}
+      {content && (
+        <div style={{ marginBottom: '16px' }}>
+          {/* Author */}
+          <div
+            style={{
+              fontSize: '13px',
+              color: 'var(--text-muted)',
+              marginBottom: '8px',
+            }}
+          >
+            @{content.authorNpub.slice(0, 8)}...
+          </div>
+
+          {/* Text content */}
+          {content.content && (
+            <div
+              style={{
+                color: 'var(--text-primary)',
+                fontSize: '15px',
+                lineHeight: 1.5,
+                marginBottom: content.imageUrls ? '12px' : 0,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {content.content.length > 280
+                ? `${content.content.slice(0, 280)}...`
+                : content.content}
+            </div>
+          )}
+
+          {/* Image preview */}
+          {content.imageUrls && content.imageUrls.length > 0 && (
+            <div style={{ marginTop: '12px' }}>
+              <img
+                src={content.imageUrls[0]}
+                alt="Post attachment"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '300px',
+                  borderRadius: '8px',
+                  objectFit: 'cover',
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fallback if no content */}
+      {!content && (
+        <div
+          style={{
+            color: 'var(--text-secondary)',
+            fontSize: '14px',
+            marginBottom: '16px',
+            fontFamily: 'monospace',
+          }}
+        >
+          Post ID: {shortId}
+        </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div
@@ -59,9 +105,9 @@ export function TrendingPostCard({
           {zapsPerHour} zaps in last hour
         </div>
 
-        {onZap && (
+        {onZap && recipientNpub && (
           <button
-            onClick={() => onZap(postId)}
+            onClick={() => onZap(postId, 100)}
             style={{
               backgroundColor: 'var(--zap-gold)',
               color: '#000000',
@@ -73,7 +119,7 @@ export function TrendingPostCard({
               cursor: 'pointer',
             }}
           >
-            ⚡ Zap
+            ⚡ Zap 100
           </button>
         )}
       </div>

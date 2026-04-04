@@ -16,8 +16,10 @@ Think Hacker News, but ranked by real money flowing instead of upvotes.
 
 - **Real-time monitoring** — Listens to zap receipts on 4+ public relays
 - **Velocity ranking** — Posts sorted by sats/hour (1h rolling window)
+- **Post content resolution** — Fetches and displays actual post text + images
+- **Alby wallet integration** — One-tap zaps via Alby browser extension or NWC
 - **Minimalist black theme** — OLED-friendly, white/gray accents with gold zap badges
-- **Connection status** — Shows relay connectivity
+- **Connection status** — Shows relay + wallet connectivity
 - **Stats dashboard** — Total trending posts, sats/hour, zaps/hour
 
 ## Tech Stack
@@ -76,16 +78,13 @@ npm start
 
 ## Limitations (Demo)
 
-- **No wallet integration** — Zap button shows alert (would integrate Alby/NWC in production)
 - **In-memory cache** — Resets on page refresh (would use SQLite/Postgres in production)
 - **Client-side only** — No backend API (would add server-side aggregation for scale)
 
 ## Production Roadmap
 
-- [ ] Alby / NWC wallet integration for one-tap zaps
 - [ ] Server-side aggregation (Node.js + PostgreSQL)
 - [ ] Historical trend tracking (rising/falling/stable)
-- [ ] Post content resolution (fetch actual post from relays)
 - [ ] Creator analytics dashboard
 - [ ] 1% routing fee on zaps (monetization)
 

@@ -1,9 +1,10 @@
 /**
  * ZapBoost Nostr Client
  * Connects to public relays and listens for NIP-57 zap receipts (kind 9735)
+ * Also fetches post content (kind 1) for display
  */
 
-import { relayInit, Filter } from 'nostr-tools';
+import { relayInit, Filter, nip19 } from 'nostr-tools';
 
 export interface ZapEvent {
   id: string;
@@ -21,11 +22,21 @@ export interface ZapVelocity {
   lastUpdated: number;
 }
 
+export interface PostContent {
+  id: string;
+  content: string;
+  authorNpub: string;
+  timestamp: number;
+  imageUrls?: string[];
+}
+
 export interface TrendingPost {
   postId: string;
   satsPerHour: number;
   zapsPerHour: number;
   velocityTrend: 'rising' | 'falling' | 'stable';
+  content?: PostContent;
+  recipientNpub?: string;
 }
 
 // Default relays for zap receipt monitoring
@@ -41,6 +52,7 @@ export class ZapBoostClient {
   private subscriptions: any[] = [];
   private zapCache: Map<string, ZapEvent[]> = new Map();
   private velocityCache: Map<string, ZapVelocity> = new Map();
+  private postCache: Map<string, PostContent> = new Map();
   private listeners: ((posts: TrendingPost[]) => void)[] = [];
   private isConnected = false;
 
@@ -93,7 +105,7 @@ export class ZapBoostClient {
     setInterval(() => this.updateVelocityCache(), 30000);
   }
 
-  private processZapReceipt(event: any) {
+  private async processZapReceipt(event: any) {
     try {
       // Extract e-tag (the post being zapped)
       const eTag = event.tags.find((t: any) => t[0] === 'e')?.[1];
@@ -122,9 +134,79 @@ export class ZapBoostClient {
       existingZaps.push(zap);
       this.zapCache.set(eTag, existingZaps);
 
+      // Fetch post content if not cached
+      if (!this.postCache.has(eTag)) {
+        this.fetchPostContent(eTag);
+      }
+
       console.log(`Zap received: ${amountSats} sats to post ${eTag.slice(0, 8)}...`);
     } catch (error) {
       console.error('Error processing zap receipt:', error);
+    }
+  }
+
+  private async fetchPostContent(postId: string) {
+    try {
+      const filter: Filter = {
+        ids: [postId],
+        kinds: [1], // Text note
+      };
+
+      // Query all relays for the post
+      const promises = this.relays.map((relay) => {
+        return new Promise((resolve) => {
+          const sub = relay.subscribe([filter], {
+            onevent: (event: any) => {
+              sub.unsub();
+              resolve(event);
+            },
+            oneose: () => {
+              sub.unsub();
+              resolve(null);
+            },
+          });
+
+          // Timeout after 3 seconds
+          setTimeout(() => {
+            sub.unsub();
+            resolve(null);
+          }, 3000);
+        });
+      });
+
+      const results = await Promise.all(promises);
+      const postEvent = results.find((r) => r !== null) as any;
+
+      if (postEvent) {
+        // Extract image URLs from content
+        const imageUrls: string[] = [];
+        const imageRegex = /https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp)/gi;
+        const matches = postEvent.content.match(imageRegex);
+        if (matches) {
+          imageUrls.push(...matches);
+        }
+
+        // Also check for image tags
+        postEvent.tags?.forEach((tag: any) => {
+          if (tag[0] === 'imeta' || tag[0] === 'image') {
+            const url = tag.find((t: string) => t.startsWith('http'));
+            if (url) imageUrls.push(url);
+          }
+        });
+
+        const postContent: PostContent = {
+          id: postEvent.id,
+          content: postEvent.content,
+          authorNpub: nip19.npubEncode(postEvent.pubkey),
+          timestamp: postEvent.created_at,
+          imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        };
+
+        this.postCache.set(postId, postContent);
+        console.log(`Fetched post content for ${postId.slice(0, 8)}...`);
+      }
+    } catch (error) {
+      console.error('Error fetching post content:', error);
     }
   }
 
@@ -146,11 +228,16 @@ export class ZapBoostClient {
         };
         this.velocityCache.set(postId, velocity);
 
+        const postContent = this.postCache.get(postId);
+        const firstZap = zaps[0];
+
         trendingPosts.push({
           postId,
           satsPerHour,
           zapsPerHour,
-          velocityTrend: 'stable', // Would need historical data for trend
+          velocityTrend: 'stable',
+          content: postContent,
+          recipientNpub: firstZap?.recipientNpub,
         });
       }
     });
@@ -172,12 +259,16 @@ export class ZapBoostClient {
 
   getTrendingPosts(limit: number = 50): TrendingPost[] {
     const posts: TrendingPost[] = [];
-    this.velocityCache.forEach((velocity) => {
+    this.velocityCache.forEach((velocity, postId) => {
+      const zaps = this.zapCache.get(postId) || [];
+      const firstZap = zaps[0];
       posts.push({
         postId: velocity.postId,
         satsPerHour: velocity.satsPerHour,
         zapsPerHour: velocity.zapsPerHour,
         velocityTrend: 'stable',
+        content: this.postCache.get(postId),
+        recipientNpub: firstZap?.recipientNpub,
       });
     });
     posts.sort((a, b) => b.satsPerHour - a.satsPerHour);

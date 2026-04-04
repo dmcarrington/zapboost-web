@@ -4,11 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { zapBoostClient, TrendingPost } from '@/lib/nostr';
 import { VelocityBadge } from '@/components/VelocityBadge';
 import { TrendingPostCard } from '@/components/TrendingPostCard';
+import { isAlbyInstalled, sendZap, connectAlby } from '@/lib/alby';
 
 export default function HomePage() {
   const [trendingPosts, setTrendingPosts] = useState<TrendingPost[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [albyConnected, setAlbyConnected] = useState(false);
 
   useEffect(() => {
     // Connect to Nostr relays
@@ -23,6 +25,9 @@ export default function HomePage() {
       setIsConnected(zapBoostClient.getIsConnected());
     });
 
+    // Check Alby status
+    setAlbyConnected(isAlbyInstalled());
+
     // Cleanup on unmount
     return () => {
       unsubscribe();
@@ -30,10 +35,34 @@ export default function HomePage() {
     };
   }, []);
 
-  const handleZap = async (postId: string) => {
-    // For demo: show alert with post ID
-    // In production: integrate with Alby or NWC wallet
-    alert(`Zap initiated for post: ${postId}\n\nWallet integration coming soon!`);
+  const handleConnectAlby = async () => {
+    const nwcUrl = await connectAlby();
+    if (nwcUrl || isAlbyInstalled()) {
+      setAlbyConnected(true);
+    }
+  };
+
+  const handleZap = async (postId: string, amountSats: number) => {
+    const post = trendingPosts.find((p) => p.postId === postId);
+    if (!post?.recipientNpub) {
+      alert('No recipient for this zap');
+      return;
+    }
+
+    try {
+      const success = await sendZap(amountSats, post.recipientNpub, postId);
+      if (success) {
+        alert(`⚡ Zap sent! ${amountSats} sats to ${post.recipientNpub.slice(0, 8)}...`);
+      } else {
+        // Alby not available, show fallback
+        alert(
+          `Zap request for ${amountSats} sats\n\nRecipient: ${post.recipientNpub}\nPost: ${postId}\n\nInstall Alby (getalby.com) for one-tap zaps!`
+        );
+      }
+    } catch (error) {
+      console.error('Zap failed:', error);
+      alert(`Zap failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   return (
@@ -90,6 +119,50 @@ export default function HomePage() {
           <span style={{ color: isConnected ? '#4CAF50' : '#F44336' }}>
             {isConnected ? 'Connected to relays' : isLoading ? 'Connecting...' : 'Disconnected'}
           </span>
+        </div>
+
+        {/* Alby wallet status */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginTop: '12px',
+            marginLeft: '12px',
+            padding: '6px 12px',
+            backgroundColor: albyConnected ? 'rgba(255, 152, 0, 0.1)' : 'rgba(117, 117, 117, 0.1)',
+            borderRadius: '20px',
+            fontSize: '12px',
+          }}
+        >
+          <div
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: albyConnected ? '#FF9800' : '#757575',
+            }}
+          />
+          <span style={{ color: albyConnected ? '#FF9800' : '#757575' }}>
+            {albyConnected ? '⚡ Alby ready' : 'Wallet disconnected'}
+          </span>
+          {!albyConnected && (
+            <button
+              onClick={handleConnectAlby}
+              style={{
+                marginLeft: '8px',
+                background: 'none',
+                border: '1px solid #FF9800',
+                borderRadius: '12px',
+                padding: '2px 8px',
+                fontSize: '11px',
+                color: '#FF9800',
+                cursor: 'pointer',
+              }}
+            >
+              Connect
+            </button>
+          )}
         </div>
       </header>
 
@@ -185,10 +258,7 @@ export default function HomePage() {
           trendingPosts.map((post) => (
             <TrendingPostCard
               key={post.postId}
-              postId={post.postId}
-              satsPerHour={post.satsPerHour}
-              zapsPerHour={post.zapsPerHour}
-              velocityTrend={post.velocityTrend}
+              post={post}
               onZap={handleZap}
             />
           ))
