@@ -262,19 +262,23 @@ export class ZapBoostClient {
       const satsPerHour = recentZaps.reduce((sum, z) => sum + z.amountSats, 0);
       const zapsPerHour = recentZaps.length;
 
-      if (satsPerHour > 0) {
+      // For demo purposes, also track ALL zaps (not just recent)
+      const totalZaps = zaps.length;
+      const totalSats = zaps.reduce((sum, z) => sum + z.amountSats, 0);
+
+      if (totalZaps > 0) {
         const velocity: ZapVelocity = {
           postId,
-          satsPerHour,
-          zapsPerHour,
+          satsPerHour: totalSats,
+          zapsPerHour: totalZaps,
           lastUpdated: Date.now(),
         };
         this.velocityCache.set(postId, velocity);
 
         trendingPosts.push({
           postId,
-          satsPerHour,
-          zapsPerHour,
+          satsPerHour: totalSats,
+          zapsPerHour: totalZaps,
           velocityTrend: 'stable',
           content: this.postCache.get(postId),
           recipientNpub: zaps[0]?.recipientNpub,
