@@ -43,7 +43,6 @@ const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
   'wss://relay.primal.net',
   'wss://nos.lol',
-  'wss://relay.nostr.band',
 ];
 
 export class ZapBoostClient {
@@ -110,8 +109,10 @@ export class ZapBoostClient {
           console.log(`Historical sync: timeout on ${relay.url}`);
         }, 5000);
 
+        console.log('Subscribing to', relay.url);
         const sub = relay.subscribe([filter], {
           onevent: (event: any) => {
+            console.log('Got historical event:', event.id, 'amount:', event.tags.find((t: any) => t[0] === 'amount')?.[1]);
             events.push(event);
             this.processZapReceipt(event);
           },
@@ -133,10 +134,6 @@ export class ZapBoostClient {
     this.relays = [];
     this.subscriptions = [];
     this.isConnected = false;
-  }
-
-  getRelayCount() {
-    return this.relays.length;
   }
 
   private startMonitoring() {
@@ -166,14 +163,23 @@ export class ZapBoostClient {
   private processZapReceipt(event: any) {
     try {
       const eTag = event.tags.find((t: any) => t[0] === 'e')?.[1];
-      if (!eTag) return;
+      if (!eTag) {
+        console.log('processZapReceipt: missing e-tag, skipping');
+        return;
+      }
 
       const amountTag = event.tags.find((t: any) => t[0] === 'amount')?.[1];
       const amountSats = amountTag ? parseInt(amountTag) : 0;
-      if (amountSats === 0) return;
+      if (amountSats === 0) {
+        console.log('processZapReceipt: amountSats=0, skipping', event.id);
+        return;
+      }
 
       const pTag = event.tags.find((t: any) => t[0] === 'p')?.[1];
-      if (!pTag) return;
+      if (!pTag) {
+        console.log('processZapReceipt: missing p-tag, skipping');
+        return;
+      }
 
       const zap: ZapEvent = {
         id: event.id,
@@ -193,6 +199,7 @@ export class ZapBoostClient {
       }
 
       console.log(`Zap received: ${amountSats} sats to post ${eTag.slice(0, 8)}...`);
+      console.log(`Zap cache size: ${this.zapCache.size}, post cache size: ${this.postCache.size}`);
     } catch (error) {
       console.error('Error processing zap receipt:', error);
     }
@@ -323,6 +330,10 @@ export class ZapBoostClient {
 
   getIsConnected(): boolean {
     return this.isConnected;
+  }
+
+  getRelayCount() {
+    return this.relays.length;
   }
 }
 
