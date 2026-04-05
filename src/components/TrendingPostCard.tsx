@@ -13,14 +13,29 @@ export function TrendingPostCard({ post, onZap }: TrendingPostCardProps) {
   const { postId, satsPerHour, zapsPerHour, velocityTrend, content, recipientNpub } = post;
   const shortId = `${postId.slice(0, 12)}...${postId.slice(-8)}`;
 
+  const openInPrimal = () => {
+    window.open(`https://primal.net/notice/${postId}`, '_blank');
+  };
+
   return (
     <div
+      onClick={openInPrimal}
       style={{
         backgroundColor: 'var(--bg-card)',
         borderRadius: '12px',
         padding: '16px',
         marginBottom: '16px',
         border: '1px solid var(--border-color)',
+        cursor: 'pointer',
+        transition: 'transform 0.1s, box-shadow 0.1s',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+        (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.transform = '';
+        (e.currentTarget as HTMLElement).style.boxShadow = '';
       }}
     >
       <div style={{ marginBottom: '12px' }}>

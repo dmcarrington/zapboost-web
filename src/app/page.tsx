@@ -102,6 +102,10 @@ export default function HomePage() {
           setUserNpubDisplay(trimmed);
           setManualNpubError(null);
           zapBoostClient.setMyNpub(data);
+          // Refresh scan
+          setTimeout(() => {
+            zapBoostClient.syncHistoricalZaps();
+          }, 500);
           console.log('Manual npub set:', trimmed);
         } else {
           setManualNpubError('Invalid npub format');
@@ -116,6 +120,10 @@ export default function HomePage() {
         setUserNpubDisplay(nip19.npubEncode(trimmed));
         setManualNpubError(null);
         zapBoostClient.setMyNpub(trimmed);
+        // Refresh scan
+        setTimeout(() => {
+          zapBoostClient.syncHistoricalZaps();
+        }, 500);
         console.log('Manual npub set (hex):', nip19.npubEncode(trimmed));
       } else {
         setManualNpubError('Must be 64-char hex or npub1234...');
