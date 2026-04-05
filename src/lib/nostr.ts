@@ -120,7 +120,6 @@ export class ZapBoostClient {
         console.log('Historical sync: subscribing to', relay.url);
         const sub = relay.subscribe([filterWithP], {
           onevent: (event: any) => {
-            console.log('Got historical event:', event.id, 'amount:', event.tags.find((t: any) => t[0] === 'amount')?.[1]);
             events.push(event);
             this.processZapReceipt(event);
           },
@@ -128,6 +127,7 @@ export class ZapBoostClient {
             sub.close();
             clearTimeout(timeout);
             console.log(`Historical sync: ${events.length} zaps from ${relay.url}`);
+            this.updateVelocityCache();
           },
         });
       } catch (err) {
@@ -180,6 +180,35 @@ export class ZapBoostClient {
     this.velocityInterval = setInterval(() => this.updateVelocityCache(), 30000);
   }
 
+  /**
+   * Extract sats from a kind-9735 zap receipt.
+   * NIP-57: the amount lives in the `description` tag (JSON of the zap request),
+   * not directly on the receipt. Falls back to a direct `amount` tag (msats) if present.
+   */
+  private extractAmountSats(event: any): number {
+    // Primary: parse the zap request embedded in the description tag
+    const description = event.tags.find((t: any) => t[0] === 'description')?.[1];
+    if (description) {
+      try {
+        const zapRequest = JSON.parse(description);
+        const msatsTag = zapRequest.tags?.find((t: any) => t[0] === 'amount')?.[1];
+        if (msatsTag) {
+          const msats = parseInt(msatsTag, 10);
+          if (!isNaN(msats) && msats > 0) return Math.floor(msats / 1000);
+        }
+      } catch {}
+    }
+
+    // Fallback: some implementations put amount (msats) directly on the receipt
+    const amountTag = event.tags.find((t: any) => t[0] === 'amount')?.[1];
+    if (amountTag) {
+      const msats = parseInt(amountTag, 10);
+      if (!isNaN(msats) && msats > 0) return Math.floor(msats / 1000);
+    }
+
+    return 0;
+  }
+
   private processZapReceipt(event: any) {
     try {
       const eTag = event.tags.find((t: any) => t[0] === 'e')?.[1];
@@ -188,12 +217,9 @@ export class ZapBoostClient {
         return;
       }
 
-      const amountTag = event.tags.find((t: any) => t[0] === 'amount')?.[1];
-      const amountSats = amountTag ? parseInt(amountTag) : 0;
-      if (amountSats === 0) {
-        console.log('processZapReceipt: amountSats=0, skipping', event.id);
-        return;
-      }
+      const amountSats = this.extractAmountSats(event);
+      // Don't skip 0-amount zaps — the zap still happened even if we can't parse the amount
+      console.log(`processZapReceipt: ${amountSats} sats`, event.id);
 
       const pTag = event.tags.find((t: any) => t[0] === 'p')?.[1];
       if (!pTag) {

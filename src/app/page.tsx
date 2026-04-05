@@ -17,6 +17,7 @@ export default function HomePage() {
   const [userNpubDisplay, setUserNpubDisplay] = useState<string | null>(null);
   const [manualNpubInput, setManualNpubInput] = useState<string>('');
   const [manualNpubError, setManualNpubError] = useState<string | null>(null);
+  const [albyDetecting, setAlbyDetecting] = useState(false);
 
   useEffect(() => {
     // Connect to Nostr relays
@@ -52,6 +53,17 @@ export default function HomePage() {
     setUserNpubDisplay(nip19.npubEncode(hexPubkey));
     zapBoostClient.setMyNpub(hexPubkey);
     zapBoostClient.restart();
+  };
+
+  const handleConnectAlby = async () => {
+    setAlbyDetecting(true);
+    const hexPubkey = await getAlbyNpub();
+    setAlbyDetecting(false);
+    if (hexPubkey) {
+      applyNpub(hexPubkey);
+    } else {
+      window.open('https://getalby.com', '_blank');
+    }
   };
 
   const handleSetNpub = () => {
@@ -137,6 +149,42 @@ export default function HomePage() {
           </span>
         </div>
 
+        {/* Alby login */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginTop: '12px',
+            marginLeft: '12px',
+            padding: '6px 12px',
+            backgroundColor: userNpub ? 'rgba(255, 152, 0, 0.1)' : 'rgba(117, 117, 117, 0.1)',
+            borderRadius: '20px',
+            fontSize: '12px',
+          }}
+        >
+          {userNpub ? (
+            <span style={{ color: '#FF9800' }}>⚡ {userNpubDisplay?.slice(0, 12)}...</span>
+          ) : (
+            <button
+              onClick={handleConnectAlby}
+              disabled={albyDetecting}
+              style={{
+                background: 'none',
+                border: '1px solid #FF9800',
+                borderRadius: '12px',
+                padding: '2px 10px',
+                fontSize: '11px',
+                color: '#FF9800',
+                cursor: albyDetecting ? 'default' : 'pointer',
+                opacity: albyDetecting ? 0.6 : 1,
+              }}
+            >
+              {albyDetecting ? 'Detecting...' : '⚡ Login with Alby'}
+            </button>
+          )}
+        </div>
+
         {/* Manual npub input */}
         <div
           style={{
@@ -187,26 +235,6 @@ export default function HomePage() {
           </span>
         )}
 
-        {/* User npub (first post recipient) */}
-        {userNpubDisplay && (
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              marginTop: '12px',
-              marginLeft: '12px',
-              padding: '6px 12px',
-              backgroundColor: 'rgba(100, 149, 237, 0.1)',
-              borderRadius: '20px',
-              fontSize: '12px',
-            }}
-          >
-            <span style={{ color: '#6495ED' }}>
-              👤 Scanning: {userNpubDisplay.slice(0, 12)}...
-            </span>
-          </div>
-        )}
       </header>
 
       {/* Stats */}
