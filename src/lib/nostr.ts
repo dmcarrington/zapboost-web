@@ -130,7 +130,7 @@ export class ZapBoostClient {
         this.fetchPostContent(eTag);
       }
 
-      console.log(`Zap received: ${amountSaps} sats to post ${eTag.slice(0, 8)}...`);
+      console.log(`Zap received: ${amountSats} sats to post ${eTag.slice(0, 8)}...`);
     } catch (error) {
       console.error('Error processing zap receipt:', error);
     }
