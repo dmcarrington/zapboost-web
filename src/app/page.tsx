@@ -208,6 +208,56 @@ export default function HomePage() {
           )}
         </div>
 
+        {/* Manual npub input */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginTop: '12px',
+            marginLeft: '12px',
+            padding: '6px 12px',
+            backgroundColor: 'rgba(147, 112, 219, 0.1)',
+            borderRadius: '20px',
+            fontSize: '12px',
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Enter your npub..."
+            value={manualNpubInput}
+            onChange={(e) => setManualNpubInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSetNpub()}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#9370DB',
+              fontSize: '12px',
+              width: '120px',
+              outline: 'none',
+            }}
+          />
+          <button
+            onClick={handleSetNpub}
+            style={{
+              background: 'none',
+              border: '1px solid #9370DB',
+              borderRadius: '12px',
+              padding: '2px 8px',
+              fontSize: '11px',
+              color: '#9370DB',
+              cursor: 'pointer',
+            }}
+          >
+            Set
+          </button>
+        </div>
+        {manualNpubError && (
+          <span style={{ color: '#F44336', fontSize: '11px', marginLeft: '8px' }}>
+            {manualNpubError}
+          </span>
+        )}
+
         {/* User npub (first post recipient) */}
         {userNpubDisplay && (
           <div
