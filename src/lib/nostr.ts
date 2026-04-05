@@ -163,49 +163,6 @@ export class ZapBoostClient {
     setInterval(() => this.updateVelocityCache(), 30000);
   }
 
-  async syncHistoricalZaps() {
-    console.log('Historical sync: starting...');
-
-    if (this.relays.length === 0) {
-      console.log('Historical sync: no relays connected, skipping');
-      return;
-    }
-
-    const threeMonthsAgo = Math.floor(Date.now() / 1000) - (3 * 30 * 24 * 60 * 60);
-
-    const filter: Filter = {
-      kinds: [9735],
-      since: threeMonthsAgo,
-    };
-
-    console.log(`Historical sync: querying zaps since ${new Date(threeMonthsAgo * 1000).toISOString()}`);
-
-    for (const relay of this.relays) {
-      try {
-        console.log(`Historical sync: querying ${relay.url}`);
-        
-        const events: any[] = [];
-        const timeout = setTimeout(() => {
-          console.log(`Historical sync: timeout on ${relay.url}`);
-        }, 5000);
-
-        const sub = relay.subscribe([filter], {
-          onevent: (event: any) => {
-            events.push(event);
-            this.processZapReceipt(event);
-          },
-          oneose: () => {
-            sub.close();
-            clearTimeout(timeout);
-            console.log(`Historical sync: ${events.length} zaps from ${relay.url}`);
-          },
-        });
-      } catch (err) {
-        console.log(`Historical sync: error on ${relay.url}`, err);
-      }
-    }
-  }
-
   private processZapReceipt(event: any) {
     try {
       const eTag = event.tags.find((t: any) => t[0] === 'e')?.[1];
