@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { zapBoostClient, TrendingPost } from '@/lib/nostr';
+import { TrendingPost } from '@/lib/nostr';
 import { VelocityBadge } from '@/components/VelocityBadge';
 import { TrendingPostCard } from '@/components/TrendingPostCard';
 import { isAlbyInstalled, sendZap, connectAlby } from '@/lib/alby';
+import * as nip19 from 'nostr-tools/nip19';
+
+import { zapBoostClient } from '@/lib/nostr';
 
 export default function HomePage() {
   const [trendingPosts, setTrendingPosts] = useState<TrendingPost[]>([]);
@@ -12,6 +15,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [albyConnected, setAlbyConnected] = useState(false);
   const [userNpub, setUserNpub] = useState<string | null>(null);
+  const [userNpubDisplay, setUserNpubDisplay] = useState<string | null>(null);
 
   useEffect(() => {
     // Connect to Nostr relays
@@ -26,8 +30,12 @@ export default function HomePage() {
       setTrendingPosts(posts);
       setIsConnected(zapBoostClient.getIsConnected());
       // Update userNpub from the first post
-      if (posts.length > 0 && !userNpub) {
-        setUserNpub(posts[0].recipientNpub || null);
+      if (posts.length > 0) {
+        const firstPost = posts[0];
+        if (firstPost.recipientNpub && !userNpub) {
+          setUserNpub(firstPost.recipientNpub);
+          console.log('User npub:', firstPost.recipientNpub);
+        }
       }
     });
 
@@ -39,6 +47,16 @@ export default function HomePage() {
       unsubscribe();
       zapBoostClient.disconnect();
     };
+  }, []);
+
+  // Update display when userNpub changes
+  useEffect(() => {
+    if (userNpub) {
+      // Convert hex pubkey to npub format using nip19
+      const npub = nip19.npubEncode(userNpub);
+      setUserNpubDisplay(npub);
+      console.log('User npub display:', npub);
+    }
   }, [userNpub]);
 
   const handleConnectAlby = async () => {
@@ -172,7 +190,7 @@ export default function HomePage() {
         </div>
 
         {/* User npub (first post recipient) */}
-        {userNpub && (
+        {userNpubDisplay && (
           <div
             style={{
               display: 'inline-flex',
@@ -187,7 +205,7 @@ export default function HomePage() {
             }}
           >
             <span style={{ color: '#6495ED' }}>
-              👤 Checking: {userNpub.slice(0, 8)}...
+              👤 Scanning: {userNpubDisplay.slice(0, 12)}...
             </span>
           </div>
         )}
