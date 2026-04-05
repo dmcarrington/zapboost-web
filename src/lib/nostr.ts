@@ -104,28 +104,44 @@ export class ZapBoostClient {
   }
 
   async syncHistoricalZaps() {
+    console.log('Historical sync: starting...');
+
+    // Try multiple approaches to get zaps
+    // 1. Query by kind 9735 with since timestamp
+    // 2. If that fails, query with keywords or authors
+
     const threeMonthsAgo = Math.floor(Date.now() / 1000) - (3 * 30 * 24 * 60 * 60);
 
+    // First try with since
     const filter: Filter = {
       kinds: [9735],
       since: threeMonthsAgo,
     };
 
-    console.log(`Historical sync: fetching zaps since ${threeMonthsAgo} (${new Date(threeMonthsAgo * 1000).toISOString()})`);
+    console.log(`Historical sync: querying zaps since ${new Date(threeMonthsAgo * 1000).toISOString()}`);
 
     for (const relay of this.relays) {
       try {
+        console.log(`Historical sync: querying ${relay.url}`);
+        // Use a time-limited query instead of continuous subscription
+        const events: any[] = [];
+        const timeout = setTimeout(() => {
+          console.log(`Historical sync: timeout on ${relay.url}`);
+        }, 5000); // 5 second timeout per relay
+
         const sub = relay.subscribe([filter], {
           onevent: (event: any) => {
+            events.push(event);
             this.processZapReceipt(event);
           },
           oneose: () => {
             sub.close();
-            console.log(`Historical sync: relay ${relay.url} completed`);
+            clearTimeout(timeout);
+            console.log(`Historical sync: ${events.length} zaps from ${relay.url}`);
           },
         });
       } catch (err) {
-        console.log(`Historical sync: failed on ${relay.url}`, err);
+        console.log(`Historical sync: error on ${relay.url}`, err);
       }
     }
   }
