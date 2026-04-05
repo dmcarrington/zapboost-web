@@ -67,20 +67,58 @@ export default function HomePage() {
     const nwcUrl = await connectAlby();
     if (nwcUrl || isAlbyInstalled()) {
       setAlbyConnected(true);
+      // Extract hex pubkey from nwcUrl if available
+      if (nwcUrl) {
+        try {
+          const url = new URL(nwcUrl);
+          const pubkey = url.pathname.split('/').pop();
+          if (pubkey && pubkey.length === 64) {
+            setUserNpub(pubkey);
+            setUserNpubDisplay(nip19.npubEncode(pubkey));
+            zapBoostClient.setMyNpub(pubkey);
+            console.log('Alby npub detected:', nip19.npubEncode(pubkey));
+          }
+        } catch (e) {
+          console.log('Could not extract npub from nwcUrl:', e);
+        }
+      }
     }
   };
 
   const handleSetNpub = () => {
-    if (manualNpubInput) {
-      // Validate it's a valid npub format
-      if (manualNpubInput.startsWith('npub1')) {
-        setUserNpub(manualNpubInput);
-        setUserNpubDisplay(manualNpubInput);
-        zapBoostClient.setMyNpub(manualNpubInput);
+    const trimmed = manualNpubInput.trim();
+    if (!trimmed) {
+      setManualNpubError('Please enter an npub');
+      return;
+    }
+
+    // Try to decode as npub first
+    if (trimmed.startsWith('npub1')) {
+      try {
+        const { decode } = nip19;
+        const { data } = decode(trimmed);
+        if (typeof data === 'string' && data.length === 64) {
+          setUserNpub(data);
+          setUserNpubDisplay(trimmed);
+          setManualNpubError(null);
+          zapBoostClient.setMyNpub(data);
+          console.log('Manual npub set:', trimmed);
+        } else {
+          setManualNpubError('Invalid npub format');
+        }
+      } catch (err) {
+        setManualNpubError('Invalid npub format');
+      }
+    } else {
+      // Assume hex pubkey (64 chars)
+      if (trimmed.length === 64 && /^[0-9a-fA-F]+$/.test(trimmed)) {
+        setUserNpub(trimmed);
+        setUserNpubDisplay(nip19.npubEncode(trimmed));
         setManualNpubError(null);
-        console.log('Manual npub set:', manualNpubInput);
+        zapBoostClient.setMyNpub(trimmed);
+        console.log('Manual npub set (hex):', nip19.npubEncode(trimmed));
       } else {
-        setManualNpubError('Invalid npub format. Must start with npub1');
+        setManualNpubError('Must be 64-char hex or npub1234...');
       }
     }
   };
