@@ -257,6 +257,8 @@ export class ZapBoostClient {
     const oneHourAgo = Date.now() - 3600000;
     const trendingPosts: TrendingPost[] = [];
 
+    console.log('updateVelocityCache: processing', this.zapCache.size, 'posts from cache');
+
     this.zapCache.forEach((zaps, postId) => {
       const recentZaps = zaps.filter((z) => z.timestamp * 1000 >= oneHourAgo);
       const satsPerHour = recentZaps.reduce((sum, z) => sum + z.amountSats, 0);
@@ -265,6 +267,8 @@ export class ZapBoostClient {
       // For demo purposes, also track ALL zaps (not just recent)
       const totalZaps = zaps.length;
       const totalSats = zaps.reduce((sum, z) => sum + z.amountSats, 0);
+
+      console.log('Post', postId.slice(0, 8), 'zaps:', totalZaps, 'sats:', totalSats);
 
       if (totalZaps > 0) {
         const velocity: ZapVelocity = {

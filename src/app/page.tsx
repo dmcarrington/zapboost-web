@@ -11,18 +11,24 @@ export default function HomePage() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [albyConnected, setAlbyConnected] = useState(false);
+  const [userNpub, setUserNpub] = useState<string | null>(null);
 
   useEffect(() => {
     // Connect to Nostr relays
     zapBoostClient.connect().then(() => {
       setIsConnected(zapBoostClient.getIsConnected());
       setIsLoading(false);
+      console.log('Connected to', zapBoostClient.getRelayCount(), 'relays');
     });
 
     // Subscribe to updates
     const unsubscribe = zapBoostClient.subscribe((posts) => {
       setTrendingPosts(posts);
       setIsConnected(zapBoostClient.getIsConnected());
+      // Update userNpub from the first post
+      if (posts.length > 0 && !userNpub) {
+        setUserNpub(posts[0].recipientNpub || null);
+      }
     });
 
     // Check Alby status
@@ -33,7 +39,7 @@ export default function HomePage() {
       unsubscribe();
       zapBoostClient.disconnect();
     };
-  }, []);
+  }, [userNpub]);
 
   const handleConnectAlby = async () => {
     const nwcUrl = await connectAlby();
@@ -164,6 +170,27 @@ export default function HomePage() {
             </button>
           )}
         </div>
+
+        {/* User npub (first post recipient) */}
+        {userNpub && (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginTop: '12px',
+              marginLeft: '12px',
+              padding: '6px 12px',
+              backgroundColor: 'rgba(100, 149, 237, 0.1)',
+              borderRadius: '20px',
+              fontSize: '12px',
+            }}
+          >
+            <span style={{ color: '#6495ED' }}>
+              👤 Checking: {userNpub.slice(0, 8)}...
+            </span>
+          </div>
+        )}
       </header>
 
       {/* Stats */}
