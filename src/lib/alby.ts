@@ -59,6 +59,22 @@ export function isAlbyInstalled(): boolean {
 }
 
 /**
+ * Get the user's hex pubkey via NIP-07 (window.nostr.getPublicKey)
+ * Works with Alby and any other NIP-07 extension.
+ * Returns null if no extension is present or the user denies.
+ */
+export async function getAlbyNpub(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  const nostr = (window as any).nostr;
+  if (!nostr?.getPublicKey) return null;
+  try {
+    return await nostr.getPublicKey(); // hex pubkey
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Request Alby connection (OAuth flow)
  */
 export async function connectAlby(): Promise<string | null> {

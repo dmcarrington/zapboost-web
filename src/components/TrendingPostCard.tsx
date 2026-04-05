@@ -6,11 +6,10 @@ import { TrendingPost } from '@/lib/nostr';
 
 interface TrendingPostCardProps {
   post: TrendingPost;
-  onZap?: (postId: string, amountSats: number) => void;
 }
 
-export function TrendingPostCard({ post, onZap }: TrendingPostCardProps) {
-  const { postId, satsPerHour, zapsPerHour, velocityTrend, content, recipientNpub } = post;
+export function TrendingPostCard({ post }: TrendingPostCardProps) {
+  const { postId, satsPerHour, zapsPerHour, velocityTrend, content } = post;
   const shortId = `${postId.slice(0, 12)}...${postId.slice(-8)}`;
 
   const openInPrimal = () => {
@@ -110,33 +109,8 @@ export function TrendingPostCard({ post, onZap }: TrendingPostCardProps) {
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div
-          style={{
-            color: 'var(--text-muted)',
-            fontSize: '12px',
-          }}
-        >
-          {zapsPerHour} zaps in last hour
-        </div>
-
-        {onZap && recipientNpub && (
-          <button
-            onClick={() => onZap(postId, 100)}
-            style={{
-              backgroundColor: 'var(--zap-gold)',
-              color: '#000000',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '8px 16px',
-              fontWeight: 700,
-              fontSize: '14px',
-              cursor: 'pointer',
-            }}
-          >
-            ⚡ Zap 100
-          </button>
-        )}
+      <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+        {zapsPerHour} zaps total
       </div>
     </div>
   );

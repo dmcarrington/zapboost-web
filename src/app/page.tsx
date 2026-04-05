@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { TrendingPost } from '@/lib/nostr';
 import { VelocityBadge } from '@/components/VelocityBadge';
 import { TrendingPostCard } from '@/components/TrendingPostCard';
-import { isAlbyInstalled, sendZap, connectAlby } from '@/lib/alby';
+import { getAlbyNpub } from '@/lib/alby';
 import * as nip19 from 'nostr-tools/nip19';
 
 import { zapBoostClient } from '@/lib/nostr';
@@ -13,36 +13,31 @@ export default function HomePage() {
   const [trendingPosts, setTrendingPosts] = useState<TrendingPost[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [albyConnected, setAlbyConnected] = useState(false);
-  const [userNpub, setUserNpub] = useState<string | null>(null);
+  const [userNpub, setUserNpub] = useState<string | null>(null); // always hex
   const [userNpubDisplay, setUserNpubDisplay] = useState<string | null>(null);
   const [manualNpubInput, setManualNpubInput] = useState<string>('');
   const [manualNpubError, setManualNpubError] = useState<string | null>(null);
 
   useEffect(() => {
     // Connect to Nostr relays
-    zapBoostClient.connect().then(() => {
+    zapBoostClient.connect().then(async () => {
       setIsConnected(zapBoostClient.getIsConnected());
       setIsLoading(false);
       console.log('Connected to', zapBoostClient.getRelayCount(), 'relays');
+
+      // Auto-detect pubkey from NIP-07 extension (e.g. Alby)
+      const hexPubkey = await getAlbyNpub();
+      if (hexPubkey) {
+        applyNpub(hexPubkey);
+        console.log('Auto-detected npub from extension');
+      }
     });
 
     // Subscribe to updates
     const unsubscribe = zapBoostClient.subscribe((posts) => {
       setTrendingPosts(posts);
       setIsConnected(zapBoostClient.getIsConnected());
-      // Update userNpub from the first post
-      if (posts.length > 0) {
-        const firstPost = posts[0];
-        if (firstPost.recipientNpub && !userNpub) {
-          setUserNpub(firstPost.recipientNpub);
-          console.log('User npub:', firstPost.recipientNpub);
-        }
-      }
     });
-
-    // Check Alby status
-    setAlbyConnected(isAlbyInstalled());
 
     // Cleanup on unmount
     return () => {
@@ -51,38 +46,12 @@ export default function HomePage() {
     };
   }, []);
 
-  // Update display when userNpub changes
-  useEffect(() => {
-    if (userNpub) {
-      // Convert hex pubkey to npub format using nip19
-      const npub = nip19.npubEncode(userNpub);
-      setUserNpubDisplay(npub);
-      console.log('User npub display:', npub);
-      // Set myNpub in client to filter zaps
-      zapBoostClient.setMyNpub(npub);
-    }
-  }, [userNpub]);
-
-  const handleConnectAlby = async () => {
-    const nwcUrl = await connectAlby();
-    if (nwcUrl || isAlbyInstalled()) {
-      setAlbyConnected(true);
-      // Extract hex pubkey from nwcUrl if available
-      if (nwcUrl) {
-        try {
-          const url = new URL(nwcUrl);
-          const pubkey = url.pathname.split('/').pop();
-          if (pubkey && pubkey.length === 64) {
-            setUserNpub(pubkey);
-            setUserNpubDisplay(nip19.npubEncode(pubkey));
-            zapBoostClient.setMyNpub(pubkey);
-            console.log('Alby npub detected:', nip19.npubEncode(pubkey));
-          }
-        } catch (e) {
-          console.log('Could not extract npub from nwcUrl:', e);
-        }
-      }
-    }
+  // Apply a hex pubkey: update state, set on client (hex), restart subscription
+  const applyNpub = (hexPubkey: string) => {
+    setUserNpub(hexPubkey);
+    setUserNpubDisplay(nip19.npubEncode(hexPubkey));
+    zapBoostClient.setMyNpub(hexPubkey);
+    zapBoostClient.restart();
   };
 
   const handleSetNpub = () => {
@@ -92,65 +61,23 @@ export default function HomePage() {
       return;
     }
 
-    // Try to decode as npub first
     if (trimmed.startsWith('npub1')) {
       try {
-        const { decode } = nip19;
-        const { data } = decode(trimmed);
+        const { data } = nip19.decode(trimmed);
         if (typeof data === 'string' && data.length === 64) {
-          setUserNpub(data);
-          setUserNpubDisplay(trimmed);
           setManualNpubError(null);
-          zapBoostClient.setMyNpub(data);
-          // Refresh scan
-          setTimeout(() => {
-            zapBoostClient.syncHistoricalZaps();
-          }, 500);
-          console.log('Manual npub set:', trimmed);
+          applyNpub(data);
         } else {
           setManualNpubError('Invalid npub format');
         }
-      } catch (err) {
+      } catch {
         setManualNpubError('Invalid npub format');
       }
+    } else if (trimmed.length === 64 && /^[0-9a-fA-F]+$/.test(trimmed)) {
+      setManualNpubError(null);
+      applyNpub(trimmed);
     } else {
-      // Assume hex pubkey (64 chars)
-      if (trimmed.length === 64 && /^[0-9a-fA-F]+$/.test(trimmed)) {
-        setUserNpub(trimmed);
-        setUserNpubDisplay(nip19.npubEncode(trimmed));
-        setManualNpubError(null);
-        zapBoostClient.setMyNpub(trimmed);
-        // Refresh scan
-        setTimeout(() => {
-          zapBoostClient.syncHistoricalZaps();
-        }, 500);
-        console.log('Manual npub set (hex):', nip19.npubEncode(trimmed));
-      } else {
-        setManualNpubError('Must be 64-char hex or npub1234...');
-      }
-    }
-  };
-
-  const handleZap = async (postId: string, amountSats: number) => {
-    const post = trendingPosts.find((p) => p.postId === postId);
-    if (!post?.recipientNpub) {
-      alert('No recipient for this zap');
-      return;
-    }
-
-    try {
-      const success = await sendZap(amountSats, post.recipientNpub, postId);
-      if (success) {
-        alert(`⚡ Zap sent! ${amountSats} sats to ${post.recipientNpub.slice(0, 8)}...`);
-      } else {
-        // Alby not available, show fallback
-        alert(
-          `Zap request for ${amountSats} sats\n\nRecipient: ${post.recipientNpub}\nPost: ${postId}\n\nInstall Alby (getalby.com) for one-tap zaps!`
-        );
-      }
-    } catch (error) {
-      console.error('Zap failed:', error);
-      alert(`Zap failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setManualNpubError('Must be 64-char hex or npub1...');
     }
   };
 
@@ -208,50 +135,6 @@ export default function HomePage() {
           <span style={{ color: isConnected ? '#4CAF50' : '#F44336' }}>
             {isConnected ? 'Connected to relays' : isLoading ? 'Connecting...' : 'Disconnected'}
           </span>
-        </div>
-
-        {/* Alby wallet status */}
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            marginTop: '12px',
-            marginLeft: '12px',
-            padding: '6px 12px',
-            backgroundColor: albyConnected ? 'rgba(255, 152, 0, 0.1)' : 'rgba(117, 117, 117, 0.1)',
-            borderRadius: '20px',
-            fontSize: '12px',
-          }}
-        >
-          <div
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: albyConnected ? '#FF9800' : '#757575',
-            }}
-          />
-          <span style={{ color: albyConnected ? '#FF9800' : '#757575' }}>
-            {albyConnected ? '⚡ Alby ready' : 'Wallet disconnected'}
-          </span>
-          {!albyConnected && (
-            <button
-              onClick={handleConnectAlby}
-              style={{
-                marginLeft: '8px',
-                background: 'none',
-                border: '1px solid #FF9800',
-                borderRadius: '12px',
-                padding: '2px 8px',
-                fontSize: '11px',
-                color: '#FF9800',
-                cursor: 'pointer',
-              }}
-            >
-              Connect
-            </button>
-          )}
         </div>
 
         {/* Manual npub input */}
@@ -419,7 +302,6 @@ export default function HomePage() {
             <TrendingPostCard
               key={post.postId}
               post={post}
-              onZap={handleZap}
             />
           ))
         )}

@@ -53,7 +53,8 @@ export class ZapBoostClient {
   private postCache: Map<string, PostContent> = new Map();
   private listeners: ((posts: TrendingPost[]) => void)[] = [];
   private isConnected = false;
-  private myNpub: string | null = null;  // User's npub to filter zaps
+  private myNpub: string | null = null;  // User's hex pubkey to filter zaps
+  private velocityInterval: ReturnType<typeof setInterval> | null = null;
 
   async connect() {
     this.relays = [];
@@ -176,7 +177,7 @@ export class ZapBoostClient {
       this.syncHistoricalZaps();
     }, 500);
 
-    setInterval(() => this.updateVelocityCache(), 30000);
+    this.velocityInterval = setInterval(() => this.updateVelocityCache(), 30000);
   }
 
   private processZapReceipt(event: any) {
@@ -361,9 +362,29 @@ export class ZapBoostClient {
     return this.relays.length;
   }
 
-  setMyNpub(npub: string) {
-    this.myNpub = npub;
-    console.log('ZapBoostClient: set myNpub to', npub);
+  setMyNpub(hexPubkey: string) {
+    this.myNpub = hexPubkey;
+    console.log('ZapBoostClient: set myNpub to', hexPubkey);
+  }
+
+  /**
+   * Clear all caches and restart subscriptions with the current myNpub filter.
+   * Call this after setMyNpub so the relay subscription and cache are clean.
+   */
+  restart() {
+    this.subscriptions.forEach((sub) => sub.close());
+    this.subscriptions = [];
+    if (this.velocityInterval) {
+      clearInterval(this.velocityInterval);
+      this.velocityInterval = null;
+    }
+    this.zapCache.clear();
+    this.velocityCache.clear();
+    this.postCache.clear();
+    this.listeners.forEach((l) => l([]));
+    if (this.isConnected) {
+      this.startMonitoring();
+    }
   }
 }
 
