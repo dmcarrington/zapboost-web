@@ -56,6 +56,8 @@ export default function HomePage() {
       const npub = nip19.npubEncode(userNpub);
       setUserNpubDisplay(npub);
       console.log('User npub display:', npub);
+      // Set myNpub in client to filter zaps
+      zapBoostClient.setMyNpub(npub);
     }
   }, [userNpub]);
 

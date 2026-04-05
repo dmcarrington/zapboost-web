@@ -53,6 +53,7 @@ export class ZapBoostClient {
   private postCache: Map<string, PostContent> = new Map();
   private listeners: ((posts: TrendingPost[]) => void)[] = [];
   private isConnected = false;
+  private myNpub: string | null = null;  // User's npub to filter zaps
 
   async connect() {
     this.relays = [];
@@ -93,12 +94,18 @@ export class ZapBoostClient {
 
     const threeMonthsAgo = Math.floor(Date.now() / 1000) - (3 * 30 * 24 * 60 * 60);
 
-    const filter: Filter = {
+    // Build filter - only if we know our npub
+    const filterWithP = this.myNpub ? {
+      kinds: [9735],
+      since: threeMonthsAgo,
+      p: [this.myNpub],
+    } : {
       kinds: [9735],
       since: threeMonthsAgo,
     };
 
     console.log(`Historical sync: querying zaps since ${new Date(threeMonthsAgo * 1000).toISOString()}`);
+    console.log('Historical sync filter:', filterWithP);
 
     for (const relay of this.relays) {
       try {
@@ -109,8 +116,8 @@ export class ZapBoostClient {
           console.log(`Historical sync: timeout on ${relay.url}`);
         }, 5000);
 
-        console.log('Subscribing to', relay.url);
-        const sub = relay.subscribe([filter], {
+        console.log('Historical sync: subscribing to', relay.url);
+        const sub = relay.subscribe([filterWithP], {
           onevent: (event: any) => {
             console.log('Got historical event:', event.id, 'amount:', event.tags.find((t: any) => t[0] === 'amount')?.[1]);
             events.push(event);
@@ -144,8 +151,20 @@ export class ZapBoostClient {
       since: oneHourAgo,
     };
 
+    // Build filter - only if we know our npub
+    const filterWithP = this.myNpub ? {
+      kinds: [9735],
+      since: oneHourAgo,
+      p: [this.myNpub],
+    } : {
+      kinds: [9735],
+      since: oneHourAgo,
+    };
+
+    console.log('Subscription filter:', filterWithP);
+
     this.subscriptions = this.relays.map((relay) =>
-      relay.subscribe([filter], {
+      relay.subscribe([filterWithP], {
         onevent: (event: any) => {
           this.processZapReceipt(event);
         },
@@ -178,6 +197,12 @@ export class ZapBoostClient {
       const pTag = event.tags.find((t: any) => t[0] === 'p')?.[1];
       if (!pTag) {
         console.log('processZapReceipt: missing p-tag, skipping');
+        return;
+      }
+
+      // Only process zaps to our npub (if we know it)
+      if (this.myNpub && pTag !== this.myNpub) {
+        console.log('processZapReceipt: zap not for us (pTag:', pTag, 'myNpub:', this.myNpub, '), skipping');
         return;
       }
 
@@ -334,6 +359,11 @@ export class ZapBoostClient {
 
   getRelayCount() {
     return this.relays.length;
+  }
+
+  setMyNpub(npub: string) {
+    this.myNpub = npub;
+    console.log('ZapBoostClient: set myNpub to', npub);
   }
 }
 
