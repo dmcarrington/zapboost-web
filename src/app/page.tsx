@@ -16,6 +16,8 @@ export default function HomePage() {
   const [albyConnected, setAlbyConnected] = useState(false);
   const [userNpub, setUserNpub] = useState<string | null>(null);
   const [userNpubDisplay, setUserNpubDisplay] = useState<string | null>(null);
+  const [manualNpubInput, setManualNpubInput] = useState<string>('');
+  const [manualNpubError, setManualNpubError] = useState<string | null>(null);
 
   useEffect(() => {
     // Connect to Nostr relays
@@ -65,6 +67,21 @@ export default function HomePage() {
     const nwcUrl = await connectAlby();
     if (nwcUrl || isAlbyInstalled()) {
       setAlbyConnected(true);
+    }
+  };
+
+  const handleSetNpub = () => {
+    if (manualNpubInput) {
+      // Validate it's a valid npub format
+      if (manualNpubInput.startsWith('npub1')) {
+        setUserNpub(manualNpubInput);
+        setUserNpubDisplay(manualNpubInput);
+        zapBoostClient.setMyNpub(manualNpubInput);
+        setManualNpubError(null);
+        console.log('Manual npub set:', manualNpubInput);
+      } else {
+        setManualNpubError('Invalid npub format. Must start with npub1');
+      }
     }
   };
 
