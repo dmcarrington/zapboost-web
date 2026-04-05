@@ -56,22 +56,32 @@ export class ZapBoostClient {
   private isConnected = false;
 
   async connect() {
-    try {
-      this.relays = await Promise.all(
-        DEFAULT_RELAYS.map(async (url) => {
-          const relay = new Relay(url);
-          await relay.connect();
-          console.log(`Connected to ${url}`);
-          return relay;
-        })
-      );
+    this.relays = [];
+    
+    // Connect to relays with error handling - don't fail if one relay is down
+    const promises = DEFAULT_RELAYS.map(async (url) => {
+      try {
+        const relay = new Relay(url);
+        await relay.connect();
+        console.log(`Connected to ${url}`);
+        return relay;
+      } catch (err) {
+        console.log(`Failed to connect to ${url}`, err);
+        return null;
+      }
+    });
+    
+    const results = await Promise.all(promises);
+    this.relays = results.filter((r): r is Relay => r !== null);
 
-      this.isConnected = true;
-      this.startMonitoring();
-    } catch (error) {
-      console.error('Failed to connect to relays:', error);
+    if (this.relays.length === 0) {
+      console.error('Failed to connect to any relays');
       this.isConnected = false;
+      return;
     }
+
+    this.isConnected = true;
+    this.startMonitoring();
   }
 
   disconnect() {
@@ -80,6 +90,10 @@ export class ZapBoostClient {
     this.relays = [];
     this.subscriptions = [];
     this.isConnected = false;
+  }
+
+  getRelayCount() {
+    return this.relays.length;
   }
 
   private startMonitoring() {
@@ -106,13 +120,13 @@ export class ZapBoostClient {
   async syncHistoricalZaps() {
     console.log('Historical sync: starting...');
 
-    // Try multiple approaches to get zaps
-    // 1. Query by kind 9735 with since timestamp
-    // 2. If that fails, query with keywords or authors
+    if (this.relays.length === 0) {
+      console.log('Historical sync: no relays connected, skipping');
+      return;
+    }
 
     const threeMonthsAgo = Math.floor(Date.now() / 1000) - (3 * 30 * 24 * 60 * 60);
 
-    // First try with since
     const filter: Filter = {
       kinds: [9735],
       since: threeMonthsAgo,
@@ -123,11 +137,11 @@ export class ZapBoostClient {
     for (const relay of this.relays) {
       try {
         console.log(`Historical sync: querying ${relay.url}`);
-        // Use a time-limited query instead of continuous subscription
+        
         const events: any[] = [];
         const timeout = setTimeout(() => {
           console.log(`Historical sync: timeout on ${relay.url}`);
-        }, 5000); // 5 second timeout per relay
+        }, 5000);
 
         const sub = relay.subscribe([filter], {
           onevent: (event: any) => {
