@@ -98,7 +98,36 @@ export class ZapBoostClient {
       })
     );
 
+    this.syncHistoricalZaps();
+
     setInterval(() => this.updateVelocityCache(), 30000);
+  }
+
+  async syncHistoricalZaps() {
+    const threeMonthsAgo = Math.floor(Date.now() / 1000) - (3 * 30 * 24 * 60 * 60);
+
+    const filter: Filter = {
+      kinds: [9735],
+      since: threeMonthsAgo,
+    };
+
+    console.log(`Historical sync: fetching zaps since ${threeMonthsAgo} (${new Date(threeMonthsAgo * 1000).toISOString()})`);
+
+    for (const relay of this.relays) {
+      try {
+        const sub = relay.subscribe([filter], {
+          onevent: (event: any) => {
+            this.processZapReceipt(event);
+          },
+          oneose: () => {
+            sub.close();
+            console.log(`Historical sync: relay ${relay.url} completed`);
+          },
+        });
+      } catch (err) {
+        console.log(`Historical sync: failed on ${relay.url}`, err);
+      }
+    }
   }
 
   private processZapReceipt(event: any) {
