@@ -1,97 +1,145 @@
-# ZapBoost Web ⚡
+# ZapBoost ⚡
 
-Real-time Lightning zap velocity feed for Nostr — web demo deployed on Vercel.
+Creator analytics for Nostr, powered by Lightning zaps.
 
-## Live Demo
+ZapBoost ingests NIP-57 zap receipts (kind 9735) from public Nostr relays, persists them to PostgreSQL, and surfaces rich analytics for creators — revenue charts, supporter leaderboards, post performance, and embeddable widgets for third-party clients.
 
-[Deploy to Vercel](https://vercel.com/new) — Coming soon
+## What's here
 
-## What It Does
+- **Public trending feed** (`/`) — real-time sats-per-hour leaderboard across the network
+- **Creator dashboard** (`/dashboard`) — NIP-07 authenticated analytics for your own npub: revenue over time, top posts, top supporters, zap-size distribution, hour-of-day heatmap, date range filters
+- **Subscriptions** (`/dashboard/settings`) — Free, Creator, and Pro tiers paid via Lightning invoice
+- **Public API** (`/api/v1/*`) — API-key authenticated endpoints for stats, leaderboards, and per-pubkey aggregates, with tier-based rate limits
+- **Embeddable widget** (`/embed/[pubkey]`) — drop-in iframe analytics card for Nostr clients to embed
+- **API docs** (`/docs`) — reference for the public API
 
-Aggregates public Nostr zap receipts (NIP-57, kind 9735) from multiple relays and ranks posts by **sats-per-hour**.
+## Tech stack
 
-Think Hacker News, but ranked by real money flowing instead of upvotes.
+- **Next.js 14** (App Router) — frontend + API routes
+- **PostgreSQL** + **Drizzle ORM** — persistent zap store, daily aggregates, users, API keys, subscriptions
+- **nostr-tools** — relay subscriptions, NIP-07 auth, NIP-57 zap parsing
+- **jose** — JWT sessions after NIP-07 challenge/verify
+- **Recharts** — dashboard charts
+- **@getalby/sdk** — Alby / NWC wallet integration
+- **LNbits** (optional) — real Lightning invoices for subscription billing; simulated in dev
 
-## Features
+## Getting started
 
-- **Real-time monitoring** — Listens to zap receipts on 4+ public relays
-- **Velocity ranking** — Posts sorted by sats/hour (1h rolling window)
-- **Post content resolution** — Fetches and displays actual post text + images
-- **Alby wallet integration** — One-tap zaps via Alby browser extension or NWC
-- **Minimalist black theme** — OLED-friendly, white/gray accents with gold zap badges
-- **Connection status** — Shows relay + wallet connectivity
-- **Stats dashboard** — Total trending posts, sats/hour, zaps/hour
-
-## Tech Stack
-
-- **Next.js 14** — React framework with App Router
-- **nostr-tools** — Nostr protocol client (relay connections, event parsing)
-- **TypeScript** — Type-safe throughout
-- **Vercel** — One-click deployment
-
-## Getting Started
-
-### Install
+### 1. Install
 
 ```bash
 npm install
 ```
 
-### Development
+### 2. Configure
 
 ```bash
-npm run dev
+cp .env.example .env.local
 ```
 
-Open http://localhost:3000
+Set at minimum:
+- `DATABASE_URL` — PostgreSQL connection string
+- `JWT_SECRET` — `openssl rand -base64 32`
 
-### Build
+Optional (for real Lightning billing):
+- `LNBITS_URL`, `LNBITS_API_KEY` — omit to use simulated payments in dev
+
+### 3. Database
 
 ```bash
-npm run build
-npm start
+npm run db:push      # apply schema
+npm run db:studio    # inspect data (optional)
 ```
 
-## Deploy to Vercel
+### 4. Run
 
-1. Push to GitHub (done ✅)
-2. Go to [vercel.com](https://vercel.com)
-3. Import this repo
-4. Deploy (no env vars needed)
+```bash
+npm run dev          # http://localhost:3000
+```
 
-## How It Works
+Other scripts: `npm run build`, `npm start`, `npm run lint`, `npm run db:generate`, `npm run db:migrate`.
 
-1. **Connect** — Client connects to 4 public Nostr relays (Damus, Primal, nos.lol, nostr.band)
-2. **Subscribe** — Listens for kind 9735 (zap receipts) from the last hour
-3. **Parse** — Extracts e-tag (post ID), amount (sats), p-tag (recipient)
-4. **Cache** — Stores zaps in memory, grouped by post
-5. **Calculate** — Every 30s: sum sats/zaps per post in last hour
-6. **Render** — Sort by sats/hour, display with velocity badges
+## Architecture
 
-## Velocity Badges
+```
+┌─────────────────────────────────────────────────────────┐
+│  Next.js 14 (App Router)                                 │
+│  ─ / (trending feed)      ─ /dashboard (creator UI)      │
+│  ─ /docs                  ─ /embed/[pubkey]              │
+│  ─ /api/auth/*            ─ /api/stats/* ─ /api/zaps/*   │
+│  ─ /api/subscribe/*       ─ /api/v1/*    (public API)    │
+└────────────────┬────────────────────────────────────────┘
+                 │
+    ┌────────────┴────────────┐
+    │  Ingestion service       │   Nostr relays
+    │  (src/lib/ingestion.ts)  │◀──(Damus, Primal,
+    │  kind 9735 subscriber    │   nos.lol, nostr.band)
+    └────────────┬────────────┘
+                 │
+         ┌───────┴───────┐
+         │  PostgreSQL   │
+         │  (Drizzle)    │
+         └───────────────┘
+```
+
+### Key files
+
+- `src/lib/nostr.ts` — legacy client-side `ZapBoostClient` (powers the public trending feed on `/`)
+- `src/lib/nostr-utils.ts` — shared NIP-57 parsing helpers (client + server)
+- `src/lib/ingestion.ts` — server-side relay aggregator; writes zaps to Postgres
+- `src/lib/db/` — Drizzle schema + connection
+- `src/lib/auth.ts`, `src/lib/auth-client.ts` — NIP-07 challenge/verify flow + JWT sessions
+- `src/lib/api-auth.ts`, `src/lib/api-keys.ts` — API key issuance and verification for `/api/v1/*`
+- `src/lib/billing.ts`, `src/lib/tiers.ts` — subscription tiers, LNbits integration, feature gating
+- `src/app/dashboard/` — authenticated creator UI
+- `src/components/dashboard/` — charts, leaderboards, stat cards, date picker
+
+## Pricing tiers
+
+| Tier | Price | Target | Features |
+|------|-------|--------|----------|
+| Free | 0 | Casual creators | Single npub, 7-day history, basic stats |
+| Creator | 10,000 sats/mo | Active creators | Full history, supporter analytics, exports, alerts |
+| Pro | 50,000 sats/mo | Power users / agencies | Multi-npub, API access, webhooks |
+| Platform | Custom | Nostr clients (Primal, Damus, …) | White-label widgets, bulk API, SLA |
+
+See `src/lib/tiers.ts` for the source of truth.
+
+## Public API
+
+API keys are issued via the dashboard settings page and sent as `Authorization: Bearer <key>`.
+
+- `GET /api/v1/stats/:pubkey` — aggregate stats for a pubkey
+- `GET /api/v1/leaderboard` — trending creators by zap velocity
+- `GET /api/v1/keys` — manage your API keys
+
+See `/docs` for full request/response schemas.
+
+## Embedding
+
+Any Nostr client can embed a creator's analytics card via iframe:
+
+```html
+<iframe
+  src="https://zapboost.app/embed/<pubkey-hex>"
+  width="400"
+  height="520"
+  style="border:0;border-radius:12px">
+</iframe>
+```
+
+## Velocity badges (trending feed)
 
 | Badge | Threshold | Color |
 |-------|-----------|-------|
 | 🔥 | 10k+ sats/hr | Gold |
-| ⚡ | 1k+ sats/hr | Orange |
-| 💧 | <1k sats/hr | Blue |
-
-## Limitations (Demo)
-
-- **In-memory cache** — Resets on page refresh (would use SQLite/Postgres in production)
-- **Client-side only** — No backend API (would add server-side aggregation for scale)
-
-## Production Roadmap
-
-- [ ] Server-side aggregation (Node.js + PostgreSQL)
-- [ ] Historical trend tracking (rising/falling/stable)
-- [ ] Creator analytics dashboard
-- [ ] 1% routing fee on zaps (monetization)
+| ⚡ | 1k+ sats/hr  | Orange |
+| 💧 | <1k sats/hr  | Blue |
 
 ## Related
 
-- **ZapBoost (Android)** — Unfiltered app integration: github.com/dmcarrington/unfiltered
-- **Nostr Oracle** — Existing zap handling infrastructure: github.com/dmcarrington/nostr-oracle
+- **ZapBoost (Android)** — github.com/dmcarrington/unfiltered
+- **Nostr Oracle** — github.com/dmcarrington/nostr-oracle
 
 ## License
 

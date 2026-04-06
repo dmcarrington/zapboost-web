@@ -5,6 +5,7 @@
  */
 
 import { Relay, Filter, nip19 } from 'nostr-tools';
+import { DEFAULT_RELAYS, parseZapReceipt, parsePostEvent } from './nostr-utils';
 
 export interface ZapEvent {
   id: string;
@@ -39,11 +40,7 @@ export interface TrendingPost {
   recipientNpub?: string;
 }
 
-const DEFAULT_RELAYS = [
-  'wss://relay.damus.io',
-  'wss://relay.primal.net',
-  'wss://nos.lol',
-];
+// DEFAULT_RELAYS imported from nostr-utils
 
 export class ZapBoostClient {
   private relays: Relay[] = [];
@@ -180,78 +177,43 @@ export class ZapBoostClient {
     this.velocityInterval = setInterval(() => this.updateVelocityCache(), 30000);
   }
 
-  /**
-   * Extract sats from a kind-9735 zap receipt.
-   * NIP-57: the amount lives in the `description` tag (JSON of the zap request),
-   * not directly on the receipt. Falls back to a direct `amount` tag (msats) if present.
-   */
-  private extractAmountSats(event: any): number {
-    // Primary: parse the zap request embedded in the description tag
-    const description = event.tags.find((t: any) => t[0] === 'description')?.[1];
-    if (description) {
-      try {
-        const zapRequest = JSON.parse(description);
-        const msatsTag = zapRequest.tags?.find((t: any) => t[0] === 'amount')?.[1];
-        if (msatsTag) {
-          const msats = parseInt(msatsTag, 10);
-          if (!isNaN(msats) && msats > 0) return Math.floor(msats / 1000);
-        }
-      } catch {}
-    }
-
-    // Fallback: some implementations put amount (msats) directly on the receipt
-    const amountTag = event.tags.find((t: any) => t[0] === 'amount')?.[1];
-    if (amountTag) {
-      const msats = parseInt(amountTag, 10);
-      if (!isNaN(msats) && msats > 0) return Math.floor(msats / 1000);
-    }
-
-    return 0;
-  }
-
   private processZapReceipt(event: any) {
     try {
-      const eTag = event.tags.find((t: any) => t[0] === 'e')?.[1];
-      if (!eTag) {
-        console.log('processZapReceipt: missing e-tag, skipping');
-        return;
-      }
-
-      const amountSats = this.extractAmountSats(event);
-      // Don't skip 0-amount zaps — the zap still happened even if we can't parse the amount
-      console.log(`processZapReceipt: ${amountSats} sats`, event.id);
-
-      const pTag = event.tags.find((t: any) => t[0] === 'p')?.[1];
-      if (!pTag) {
+      const parsed = parseZapReceipt(event);
+      if (!parsed) {
         console.log('processZapReceipt: missing p-tag, skipping');
         return;
       }
 
+      if (!parsed.postId) {
+        console.log('processZapReceipt: missing e-tag (profile zap), skipping');
+        return;
+      }
+
       // Only process zaps to our npub (if we know it)
-      if (this.myNpub && pTag !== this.myNpub) {
-        console.log('processZapReceipt: zap not for us (pTag:', pTag, 'myNpub:', this.myNpub, '), skipping');
+      if (this.myNpub && parsed.recipientPubkey !== this.myNpub) {
+        console.log('processZapReceipt: zap not for us, skipping');
         return;
       }
 
       const zap: ZapEvent = {
-        id: event.id,
-        postId: eTag,
-        recipientNpub: pTag,
-        amountSats,
-        timestamp: event.created_at,
-        senderNpub: event.pubkey,
+        id: parsed.id,
+        postId: parsed.postId,
+        recipientNpub: parsed.recipientPubkey,
+        amountSats: parsed.amountSats,
+        timestamp: parsed.timestamp,
+        senderNpub: parsed.senderPubkey ?? event.pubkey,
       };
 
-      const existingZaps = this.zapCache.get(eTag) || [];
+      const existingZaps = this.zapCache.get(parsed.postId) || [];
       existingZaps.push(zap);
-      this.zapCache.set(eTag, existingZaps);
+      this.zapCache.set(parsed.postId, existingZaps);
 
-      if (!this.postCache.has(eTag)) {
-        this.fetchPostContent(eTag);
+      if (!this.postCache.has(parsed.postId)) {
+        this.fetchPostContent(parsed.postId);
       }
 
-      console.log(`Zap received: ${amountSats} sats to post ${eTag.slice(0, 8)}...`);
-      console.log(`Zap cache size: ${this.zapCache.size}, post cache size: ${this.postCache.size}`);
+      console.log(`Zap received: ${parsed.amountSats} sats to post ${parsed.postId.slice(0, 8)}...`);
     } catch (error) {
       console.error('Error processing zap receipt:', error);
     }
@@ -288,24 +250,13 @@ export class ZapBoostClient {
       const postEvent = results.find((r) => r !== null) as any;
 
       if (postEvent) {
-        const imageUrls: string[] = [];
-        const imageRegex = /https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp)/gi;
-        const matches = postEvent.content.match(imageRegex);
-        if (matches) imageUrls.push(...matches);
-
-        postEvent.tags?.forEach((tag: any) => {
-          if (tag[0] === 'imeta' || tag[0] === 'image') {
-            const url = tag.find((t: string) => t.startsWith('http'));
-            if (url) imageUrls.push(url);
-          }
-        });
-
+        const parsed = parsePostEvent(postEvent);
         const postContent: PostContent = {
-          id: postEvent.id,
-          content: postEvent.content,
-          authorNpub: nip19.npubEncode(postEvent.pubkey),
-          timestamp: postEvent.created_at,
-          imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+          id: parsed.id,
+          content: parsed.content,
+          authorNpub: nip19.npubEncode(parsed.authorPubkey),
+          timestamp: parsed.createdAt,
+          imageUrls: parsed.images.length > 0 ? parsed.images : undefined,
         };
 
         this.postCache.set(postId, postContent);

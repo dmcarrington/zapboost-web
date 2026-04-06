@@ -122,6 +122,22 @@ export default function HomePage() {
         >
           Real-time Nostr zap velocity feed
         </p>
+        <a
+          href="/dashboard"
+          style={{
+            display: 'inline-block',
+            marginTop: '12px',
+            padding: '8px 20px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--zap-gold)',
+            borderRadius: '20px',
+            fontSize: '13px',
+            color: 'var(--zap-gold)',
+            fontWeight: 600,
+          }}
+        >
+          Creator Dashboard
+        </a>
 
         {/* Connection status */}
         <div
@@ -347,6 +363,9 @@ export default function HomePage() {
       >
         <p>Built on Nostr + Lightning Network</p>
         <p style={{ marginTop: '8px' }}>
+          <a href="/docs" style={{ color: 'var(--text-secondary)', marginRight: '16px' }}>
+            API Docs
+          </a>
           <a
             href="https://github.com/dmcarrington/zapboost-web"
             target="_blank"
