@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import { validateChallenge, createSession } from '@/lib/auth';
 import { verifyEvent } from 'nostr-tools';
+import { db } from '@/lib/db';
+import { backfillJobs } from '@/lib/db/schema';
 
 export async function POST(request: Request) {
   try {
@@ -37,6 +40,19 @@ export async function POST(request: Request) {
     // Create session
     const pubkey = signedEvent.pubkey;
     const token = await createSession(pubkey);
+
+    // Enqueue a backfill job so the worker pulls historical zaps for this pubkey.
+    // Safe to enqueue on every login — the worker will see recent completed jobs
+    // and skip, but the simplest correct version just inserts unconditionally.
+    try {
+      await db.insert(backfillJobs).values({
+        id: randomUUID(),
+        pubkey,
+        status: 'pending',
+      });
+    } catch (err) {
+      console.error('[auth/verify] Failed to enqueue backfill job:', err);
+    }
 
     const response = NextResponse.json({ token, pubkey });
 

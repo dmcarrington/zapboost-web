@@ -72,6 +72,20 @@ export const apiKeys = pgTable('api_keys', {
   index('apikey_pubkey_idx').on(table.pubkey),
 ]);
 
+export const backfillJobs = pgTable('backfill_jobs', {
+  id: text('id').primaryKey(), // UUID
+  pubkey: text('pubkey').notNull().references(() => users.pubkey),
+  status: text('status').notNull().default('pending'), // pending | running | completed | failed
+  requestedAt: timestamp('requested_at').defaultNow().notNull(),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  eventsProcessed: integer('events_processed'),
+  error: text('error'),
+}, (table) => [
+  index('backfill_status_idx').on(table.status),
+  index('backfill_pubkey_idx').on(table.pubkey),
+]);
+
 export const sessions = pgTable('sessions', {
   id: text('id').primaryKey(), // JWT jti
   pubkey: text('pubkey').notNull().references(() => users.pubkey),

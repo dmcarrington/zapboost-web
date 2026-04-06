@@ -27,7 +27,7 @@ There are no tests.
 
 - **DB:** PostgreSQL via `drizzle-orm` + `postgres`. Connection in `src/lib/db/index.ts`, schema in `src/lib/db/schema.ts`. `DATABASE_URL` env var required.
 - **Tables:** `users` (pubkey PK, tier), `zap_events` (nostr event id PK, indexed by recipient+timestamp, post, sender, ts), `posts` (kind-1 note cache), `subscriptions` (Lightning-paid tier upgrades), `api_keys` (`zb_live_…`/`zb_test_…` tokens), `sessions` (JWT jti records).
-- **Ingestion:** `src/lib/ingestion.ts` — server-side `IngestionService` connects to relays, deduplicates kind-9735 zap receipts via `seenEventIds`, persists them to `zap_events`, and backfills kind-1 post content into `posts`. Shares parsing helpers with the client via `src/lib/nostr-utils.ts` (`DEFAULT_RELAYS`, `parseZapReceipt`, `parsePostEvent`).
+- **Ingestion:** `src/lib/ingestion.ts` — stateless, pull-based `IngestionService`. Each call connects to relays, runs a bounded filter query, writes kind-9735 zap receipts to `zap_events` (dedup via PK + `onConflictDoNothing`), backfills kind-1 post content into `posts`, and disconnects. Triggered on a schedule by `/api/cron/ingest` (Vercel Cron in `vercel.json`), which also drains pending rows from `backfill_jobs`. Shares parsing helpers with the client via `src/lib/nostr-utils.ts` (`DEFAULT_RELAYS`, `parseZapReceipt`, `parsePostEvent`).
 
 ### Auth: NIP-07 + JWT
 
