@@ -1,0 +1,27 @@
+name: Ingest zaps
+
+# Scheduled pull of recent Nostr zaps into the ZapBoost database.
+# This workflow is the free-tier replacement for a long-running ingestion
+# worker — it just curls the /api/cron/ingest endpoint on the deployed
+# Vercel app with the shared secret.
+#
+# Required repo secrets:
+#   INGEST_URL    — e.g. https://zapboost.vercel.app/api/cron/ingest
+#   CRON_SECRET   — same value as the CRON_SECRET env var on Vercel
+
+on:
+  schedule:
+    # Every 10 minutes. GitHub Actions enforces a 5-minute minimum.
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # allow manual runs from the Actions tab
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Hit ingest endpoint
+        run: |
+          curl -fsS -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.INGEST_URL }}"
