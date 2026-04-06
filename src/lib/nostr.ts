@@ -92,11 +92,13 @@ export class ZapBoostClient {
 
     const threeMonthsAgo = Math.floor(Date.now() / 1000) - (3 * 30 * 24 * 60 * 60);
 
-    // Build filter - only if we know our npub
-    const filterWithP = this.myNpub ? {
+    // Build filter - only if we know our npub.
+    // NIP-01 tag filters are keyed `#p`, not `p`. A bare `p` key is an
+    // unknown field and relays return no matches.
+    const filterWithP: Filter = this.myNpub ? {
       kinds: [9735],
       since: threeMonthsAgo,
-      p: [this.myNpub],
+      '#p': [this.myNpub],
     } : {
       kinds: [9735],
       since: threeMonthsAgo,
@@ -144,16 +146,13 @@ export class ZapBoostClient {
   private startMonitoring() {
     const oneHourAgo = Math.floor(Date.now() / 1000) - 3600;
 
-    const filter: Filter = {
+    // Build filter - only if we know our npub.
+    // NIP-01 tag filters are keyed `#p`, not `p`. A bare `p` key is an
+    // unknown field and relays return no matches.
+    const filterWithP: Filter = this.myNpub ? {
       kinds: [9735],
       since: oneHourAgo,
-    };
-
-    // Build filter - only if we know our npub
-    const filterWithP = this.myNpub ? {
-      kinds: [9735],
-      since: oneHourAgo,
-      p: [this.myNpub],
+      '#p': [this.myNpub],
     } : {
       kinds: [9735],
       since: oneHourAgo,

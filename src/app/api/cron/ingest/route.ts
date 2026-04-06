@@ -21,6 +21,22 @@ import { db } from '@/lib/db';
 import { users, zapEvents, backfillJobs } from '@/lib/db/schema';
 import { ingestionService } from '@/lib/ingestion';
 
+/**
+ * Returns just the host of the configured DATABASE_URL (no credentials,
+ * no path), so the cron response can include it as a diagnostic. This
+ * lets you eyeball "is the deployment actually talking to the Neon DB I
+ * think it is?" without digging through Vercel env vars.
+ */
+function dbHostForDiagnostics(): string {
+  const url = process.env.DATABASE_URL;
+  if (!url) return '(DATABASE_URL unset)';
+  try {
+    return new URL(url).host;
+  } catch {
+    return '(unparseable)';
+  }
+}
+
 // Vercel Hobby allows up to 60s function duration.
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -39,6 +55,8 @@ export async function GET(request: Request) {
     if (auth !== `Bearer ${secret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+  } else {
+    console.warn('[cron/ingest] CRON_SECRET is not set — endpoint is unauthenticated');
   }
 
   const startedAt = Date.now();
@@ -48,12 +66,54 @@ export async function GET(request: Request) {
     backfillsFailed: 0,
     skippedNoUsers: false,
     durationMs: 0,
+    diagnostics: {
+      dbHost: dbHostForDiagnostics(),
+      cronSecretConfigured: Boolean(secret),
+      userCount: 0,
+      pendingBackfillCount: 0,
+      completedBackfillCount: 0,
+      failedBackfillCount: 0,
+      zapEventCount: 0,
+      firstUserPubkeyPrefix: null as string | null,
+    },
   };
 
   try {
+    // --- 0. Diagnostic counts (cheap, all Postgres `count(*)`) ---
+    const [userCountRow] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(users);
+    summary.diagnostics.userCount = userCountRow?.c ?? 0;
+
+    const [zapCountRow] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(zapEvents);
+    summary.diagnostics.zapEventCount = zapCountRow?.c ?? 0;
+
+    const [pendingRow] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(backfillJobs)
+      .where(eq(backfillJobs.status, 'pending'));
+    summary.diagnostics.pendingBackfillCount = pendingRow?.c ?? 0;
+
+    const [completedRow] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(backfillJobs)
+      .where(eq(backfillJobs.status, 'completed'));
+    summary.diagnostics.completedBackfillCount = completedRow?.c ?? 0;
+
+    const [failedRow] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(backfillJobs)
+      .where(eq(backfillJobs.status, 'failed'));
+    summary.diagnostics.failedBackfillCount = failedRow?.c ?? 0;
+
     // --- 1. Pull recent zaps for all registered users ---
     const registeredUsers = await db.select({ pubkey: users.pubkey }).from(users);
     const pubkeys = registeredUsers.map((u) => u.pubkey);
+    if (pubkeys[0]) {
+      summary.diagnostics.firstUserPubkeyPrefix = pubkeys[0].slice(0, 8);
+    }
 
     if (pubkeys.length === 0) {
       summary.skippedNoUsers = true;
