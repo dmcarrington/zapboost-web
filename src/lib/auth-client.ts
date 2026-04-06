@@ -80,6 +80,31 @@ export function clearSession() {
 }
 
 /**
+ * Full logout: hits /api/auth/logout to clear the httpOnly cookie and
+ * delete the server-side sessions row, then clears localStorage. Also
+ * sets a flag so the landing page does not auto-re-detect the user's
+ * npub from their Nostr extension until they explicitly opt back in.
+ */
+export async function logout(): Promise<void> {
+  const session = getStoredSession();
+  try {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: session ? { Authorization: `Bearer ${session.token}` } : undefined,
+      credentials: 'include',
+    });
+  } catch {
+    // Even if the network request fails, still clear client state.
+  }
+  clearSession();
+  try {
+    localStorage.setItem('zapboost_skip_autodetect', '1');
+  } catch {
+    // localStorage may be unavailable in some environments.
+  }
+}
+
+/**
  * Fetch wrapper that includes the auth token.
  */
 export async function authFetch(url: string, options?: RequestInit): Promise<Response> {

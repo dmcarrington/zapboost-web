@@ -339,7 +339,7 @@ export class ZapBoostClient {
     return this.relays.length;
   }
 
-  setMyNpub(hexPubkey: string) {
+  setMyNpub(hexPubkey: string | null) {
     this.myNpub = hexPubkey;
     console.log('ZapBoostClient: set myNpub to', hexPubkey);
   }

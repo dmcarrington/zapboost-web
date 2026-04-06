@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import * as nip19 from 'nostr-tools/nip19';
 import { VelocityBadge } from './VelocityBadge';
 import { TrendingPost } from '@/lib/nostr';
 
@@ -13,7 +14,13 @@ export function TrendingPostCard({ post }: TrendingPostCardProps) {
   const shortId = `${postId.slice(0, 12)}...${postId.slice(-8)}`;
 
   const openInPrimal = () => {
-    window.open(`https://primal.net/notice/${postId}`, '_blank');
+    // Primal's /e/ route expects a NIP-19 bech32 identifier, not raw hex.
+    try {
+      const note = nip19.noteEncode(postId);
+      window.open(`https://primal.net/e/${note}`, '_blank');
+    } catch {
+      // Shouldn't happen for valid event ids, but fail soft rather than throw.
+    }
   };
 
   return (

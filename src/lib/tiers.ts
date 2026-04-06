@@ -27,7 +27,10 @@ export const TIERS: Record<Tier, TierConfig> = {
     name: 'free',
     displayName: 'Free',
     priceSats: 0,
-    maxHistoryDays: 7,
+    // Demo deployment: give free-tier users a full year of history so the
+    // dashboard actually shows something on fresh signups. Tighten this if
+    // you ever want to re-enable the paywall on history depth.
+    maxHistoryDays: 365,
     maxTopPosts: 5,
     maxTopSupporters: 5,
     features: {

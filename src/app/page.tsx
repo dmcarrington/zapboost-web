@@ -26,11 +26,16 @@ export default function HomePage() {
       setIsLoading(false);
       console.log('Connected to', zapBoostClient.getRelayCount(), 'relays');
 
-      // Auto-detect pubkey from NIP-07 extension (e.g. Alby)
-      const hexPubkey = await getAlbyNpub();
-      if (hexPubkey) {
-        applyNpub(hexPubkey);
-        console.log('Auto-detected npub from extension');
+      // Auto-detect pubkey from NIP-07 extension (e.g. Alby), unless the
+      // user has explicitly logged out / asked to see all zaps.
+      const skipAuto = typeof window !== 'undefined'
+        && localStorage.getItem('zapboost_skip_autodetect') === '1';
+      if (!skipAuto) {
+        const hexPubkey = await getAlbyNpub();
+        if (hexPubkey) {
+          applyNpub(hexPubkey);
+          console.log('Auto-detected npub from extension');
+        }
       }
     });
 
@@ -60,10 +65,22 @@ export default function HomePage() {
     const hexPubkey = await getAlbyNpub();
     setAlbyDetecting(false);
     if (hexPubkey) {
+      // Opting in again — clear the skip flag so future visits auto-detect.
+      try { localStorage.removeItem('zapboost_skip_autodetect'); } catch {}
       applyNpub(hexPubkey);
     } else {
       window.open('https://getalby.com', '_blank');
     }
+  };
+
+  const handleClearNpub = () => {
+    setUserNpub(null);
+    setUserNpubDisplay(null);
+    zapBoostClient.setMyNpub(null);
+    zapBoostClient.restart();
+    // Remember the user's choice so navigating away and back doesn't
+    // silently re-apply the Alby-detected filter.
+    try { localStorage.setItem('zapboost_skip_autodetect', '1'); } catch {}
   };
 
   const handleSetNpub = () => {
@@ -180,7 +197,24 @@ export default function HomePage() {
           }}
         >
           {userNpub ? (
-            <span style={{ color: '#FF9800' }}>⚡ {userNpubDisplay?.slice(0, 12)}...</span>
+            <>
+              <span style={{ color: '#FF9800' }}>⚡ {userNpubDisplay?.slice(0, 12)}...</span>
+              <button
+                onClick={handleClearNpub}
+                title="Show zaps from all users"
+                style={{
+                  background: 'none',
+                  border: '1px solid #FF9800',
+                  borderRadius: '12px',
+                  padding: '2px 8px',
+                  fontSize: '11px',
+                  color: '#FF9800',
+                  cursor: 'pointer',
+                }}
+              >
+                Show all
+              </button>
+            </>
           ) : (
             <button
               onClick={handleConnectAlby}

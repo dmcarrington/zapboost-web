@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import * as nip19 from 'nostr-tools/nip19';
 import { TopPost, formatSats } from './types';
 
 interface PostPerformanceProps {
@@ -125,14 +126,16 @@ export function PostPerformance({ posts }: PostPerformanceProps) {
                     ))}
                   </div>
                 )}
-                <a
-                  href={`https://primal.net/e/${post.postId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontSize: 12, color: 'var(--zap-blue)', marginTop: 8, display: 'inline-block' }}
-                >
-                  View on Primal →
-                </a>
+                {post.postId && (
+                  <a
+                    href={`https://primal.net/e/${nip19.noteEncode(post.postId)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, color: 'var(--zap-blue)', marginTop: 8, display: 'inline-block' }}
+                  >
+                    View on Primal →
+                  </a>
+                )}
               </div>
             )}
           </div>

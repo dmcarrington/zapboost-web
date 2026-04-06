@@ -7,7 +7,7 @@ import {
   truncateNpub,
 } from '@/components/dashboard';
 import type { Stats, HourlyStats } from '@/components/dashboard';
-import { getStoredSession, loginWithNostr, clearSession, isNip07Available, authFetch } from '@/lib/auth-client';
+import { getStoredSession, loginWithNostr, logout, isNip07Available, authFetch } from '@/lib/auth-client';
 import { hexToNpub } from '@/lib/nostr-utils';
 import { TIERS, type Tier } from '@/lib/tiers';
 
@@ -112,12 +112,14 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    clearSession();
+  const handleLogout = async () => {
+    await logout();
     setPubkey(null);
     setStats(null);
     setHourlyStats(null);
     setTier('free');
+    // Kick the user back to the landing page with no filter applied.
+    window.location.href = '/';
   };
 
   // Unauthenticated state
