@@ -9,6 +9,10 @@ export const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
   'wss://relay.primal.net',
   'wss://nos.lol',
+  // Archival/search relay — significantly broader historical coverage than
+  // the three above. Particularly useful for finding older zap receipts
+  // that other relays may have evicted.
+  'wss://relay.nostr.band',
 ];
 
 export interface ParsedZap {

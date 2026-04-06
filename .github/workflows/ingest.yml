@@ -20,8 +20,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
+      - name: Debug — confirm secrets are reaching the workflow
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          INGEST_URL: ${{ secrets.INGEST_URL }}
+        run: |
+          echo "CRON_SECRET length: ${#CRON_SECRET}"
+          echo "INGEST_URL length:  ${#INGEST_URL}"
+          echo "INGEST_URL first 20 chars: ${INGEST_URL:0:20}"
       - name: Hit ingest endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          INGEST_URL: ${{ secrets.INGEST_URL }}
         run: |
           curl -fsS -X GET \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.INGEST_URL }}"
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$INGEST_URL"
