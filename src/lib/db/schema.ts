@@ -10,6 +10,21 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
+import {
+  pgTable,
+  text,
+  timestamp,
+  index,
+} from 'drizzle-orm/pg-core';
+
+export const challenges = pgTable('challenges', {
+  id: text('id').primaryKey(), // the challenge itself
+  pubkey: text('pubkey'), // optional: pre-stored pubkey for this challenge
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  created_idx: index('challenge_created_idx').on(table.createdAt),
+}));
+
 export const users = pgTable('users', {
   pubkey: text('pubkey').primaryKey(),
   tier: text('tier').notNull().default('free'), // free | creator | pro | platform

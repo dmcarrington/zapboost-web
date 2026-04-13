@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
     // Validate the challenge is in the event content
     const challenge = signedEvent.content;
-    if (!validateChallenge(challenge)) {
+    if (!await validateChallenge(challenge)) {
       return NextResponse.json({ error: 'Invalid or expired challenge' }, { status: 401 });
     }
 

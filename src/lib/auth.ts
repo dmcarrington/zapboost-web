@@ -10,39 +10,44 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 import { db } from './db';
-import { users, sessions } from './db/schema';
-import { eq } from 'drizzle-orm';
+import { users, sessions, challenges } from './db/schema';
+import { eq, and, lt } from 'drizzle-orm';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'dev-secret-change-me');
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const CHALLENGE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-// In-memory challenge store (short-lived, no need for DB)
-const challenges = new Map<string, { challenge: string; createdAt: number }>();
-
-export function createChallenge(): string {
+export async function createChallenge(): Promise<string> {
   const challenge = crypto.randomUUID();
-  challenges.set(challenge, { challenge, createdAt: Date.now() });
+  
+  // Store challenge in database (stateless-friendly)
+  await db.insert(challenges).values({
+    id: challenge,
+    createdAt: new Date(),
+  }).onConflictDoNothing();
 
   // Clean up old challenges (older than 5 minutes)
-  const fiveMinAgo = Date.now() - 5 * 60 * 1000;
-  challenges.forEach((val, key) => {
-    if (val.createdAt < fiveMinAgo) challenges.delete(key);
-  });
+  const fiveMinAgo = new Date(Date.now() - CHALLENGE_TTL_MS);
+  await db.delete(challenges).where(lt(challenges.createdAt, fiveMinAgo));
 
   return challenge;
 }
 
-export function validateChallenge(challenge: string): boolean {
-  const entry = challenges.get(challenge);
-  if (!entry) return false;
+export async function validateChallenge(challenge: string): Promise<boolean> {
+  // Look up challenge in database
+  const [record] = await db
+    .select()
+    .from(challenges)
+    .where(and(
+      eq(challenges.id, challenge),
+      gt(challenges.createdAt, new Date(Date.now() - CHALLENGE_TTL_MS))
+    ));
 
-  const fiveMinAgo = Date.now() - 5 * 60 * 1000;
-  if (entry.createdAt < fiveMinAgo) {
-    challenges.delete(challenge);
-    return false;
-  }
+  if (!record) return false;
 
-  challenges.delete(challenge); // One-time use
+  // Delete used challenge
+  await db.delete(challenges).where(eq(challenges.id, challenge));
+
   return true;
 }
 
