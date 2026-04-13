@@ -25,12 +25,12 @@ export const zapEvents = pgTable('zap_events', {
   amountSats: integer('amount_sats').notNull(),
   timestamp: bigint('timestamp', { mode: 'number' }).notNull(),
   rawEvent: jsonb('raw_event'),
-}, (table) => [
-  index('zap_recipient_ts_idx').on(table.recipientPubkey, table.timestamp),
-  index('zap_post_idx').on(table.postId),
-  index('zap_sender_idx').on(table.senderPubkey),
-  index('zap_ts_idx').on(table.timestamp),
-]);
+}, (table) => ({
+  zap_recipient_ts_idx: index('zap_recipient_ts_idx').on(table.recipientPubkey, table.timestamp),
+  zap_post_idx: index('zap_post_idx').on(table.postId),
+  zap_sender_idx: index('zap_sender_idx').on(table.senderPubkey),
+  zap_ts_idx: index('zap_ts_idx').on(table.timestamp),
+}));
 
 export const posts = pgTable('posts', {
   id: text('id').primaryKey(), // nostr event id
@@ -38,9 +38,9 @@ export const posts = pgTable('posts', {
   authorPubkey: text('author_pubkey').notNull(),
   createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   images: jsonb('images').default([]),
-}, (table) => [
-  index('post_author_idx').on(table.authorPubkey),
-]);
+}, (table) => ({
+  post_author_idx: index('post_author_idx').on(table.authorPubkey),
+}));
 
 export const subscriptions = pgTable('subscriptions', {
   id: text('id').primaryKey(), // payment hash or UUID
@@ -53,11 +53,11 @@ export const subscriptions = pgTable('subscriptions', {
   paidAt: timestamp('paid_at'),
   expiresAt: timestamp('expires_at').notNull(), // subscription end date
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (table) => [
-  index('sub_pubkey_idx').on(table.pubkey),
-  index('sub_status_idx').on(table.status),
-  index('sub_expires_idx').on(table.expiresAt),
-]);
+}, (table) => ({
+  sub_pubkey_idx: index('sub_pubkey_idx').on(table.pubkey),
+  sub_status_idx: index('sub_status_idx').on(table.status),
+  sub_expires_idx: index('sub_expires_idx').on(table.expiresAt),
+}));
 
 export const apiKeys = pgTable('api_keys', {
   id: text('id').primaryKey(), // the API key itself (zb_live_xxx or zb_test_xxx)
@@ -68,9 +68,9 @@ export const apiKeys = pgTable('api_keys', {
   lastUsedAt: timestamp('last_used_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   revokedAt: timestamp('revoked_at'),
-}, (table) => [
-  index('apikey_pubkey_idx').on(table.pubkey),
-]);
+}, (table) => ({
+  apikey_pubkey_idx: index('apikey_pubkey_idx').on(table.pubkey),
+}));
 
 export const backfillJobs = pgTable('backfill_jobs', {
   id: text('id').primaryKey(), // UUID
@@ -81,17 +81,17 @@ export const backfillJobs = pgTable('backfill_jobs', {
   completedAt: timestamp('completed_at'),
   eventsProcessed: integer('events_processed'),
   error: text('error'),
-}, (table) => [
-  index('backfill_status_idx').on(table.status),
-  index('backfill_pubkey_idx').on(table.pubkey),
-]);
+}, (table) => ({
+  backfill_status_idx: index('backfill_status_idx').on(table.status),
+  backfill_pubkey_idx: index('backfill_pubkey_idx').on(table.pubkey),
+}));
 
 export const sessions = pgTable('sessions', {
   id: text('id').primaryKey(), // JWT jti
   pubkey: text('pubkey').notNull().references(() => users.pubkey),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (table) => [
-  index('session_pubkey_idx').on(table.pubkey),
-  index('session_expires_idx').on(table.expiresAt),
-]);
+}, (table) => ({
+  session_pubkey_idx: index('session_pubkey_idx').on(table.pubkey),
+  session_expires_idx: index('session_expires_idx').on(table.expiresAt),
+}));
