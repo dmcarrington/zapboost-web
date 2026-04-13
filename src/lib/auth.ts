@@ -11,7 +11,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { db } from './db';
 import { users, sessions, challenges } from './db/schema';
-import { eq, and, lt } from 'drizzle-orm';
+import { eq, and, lt, gt } from 'drizzle-orm';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'dev-secret-change-me');
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
