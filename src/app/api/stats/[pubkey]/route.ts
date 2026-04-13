@@ -4,12 +4,31 @@ import { zapEvents, posts } from '@/lib/db/schema';
 import { eq, sql, desc, and, gte } from 'drizzle-orm';
 import { authenticateRequest } from '@/lib/api-auth';
 import { clampDays, getTierConfig } from '@/lib/tiers';
+import { nip19 } from 'nostr-tools';
+
+function normalizePubkey(pubkey: string): string {
+  // If it's a hex pubkey (64 chars), return as-is
+  if (/^[0-9a-f]{64}$/i.test(pubkey)) {
+    return pubkey.toLowerCase();
+  }
+  // If it's a npub, decode to hex
+  try {
+    const decoded = nip19.decode(pubkey);
+    if (decoded.type === 'npub') {
+      return decoded.data as string;
+    }
+  } catch {
+    // Not a valid npub, return as-is and let the query fail
+  }
+  return pubkey;
+}
 
 export async function GET(
   request: Request,
   { params }: { params: { pubkey: string } }
 ) {
   const { pubkey } = params;
+  const normalizedPubkey = normalizePubkey(pubkey);
 
   // Authenticate to determine tier (unauthenticated gets free tier limits)
   const auth = await authenticateRequest(request);
@@ -33,7 +52,7 @@ export async function GET(
       })
       .from(zapEvents)
       .where(and(
-        eq(zapEvents.recipientPubkey, pubkey),
+        eq(zapEvents.recipientPubkey, normalizedPubkey),
         gte(zapEvents.timestamp, since),
       ));
 
@@ -46,7 +65,7 @@ export async function GET(
       })
       .from(zapEvents)
       .where(and(
-        eq(zapEvents.recipientPubkey, pubkey),
+        eq(zapEvents.recipientPubkey, normalizedPubkey),
         gte(zapEvents.timestamp, since),
       ))
       .groupBy(zapEvents.postId)
@@ -75,7 +94,7 @@ export async function GET(
       })
       .from(zapEvents)
       .where(and(
-        eq(zapEvents.recipientPubkey, pubkey),
+        eq(zapEvents.recipientPubkey, normalizedPubkey),
         gte(zapEvents.timestamp, since),
       ))
       .groupBy(zapEvents.senderPubkey)
@@ -91,7 +110,7 @@ export async function GET(
       })
       .from(zapEvents)
       .where(and(
-        eq(zapEvents.recipientPubkey, pubkey),
+        eq(zapEvents.recipientPubkey, normalizedPubkey),
         gte(zapEvents.timestamp, since),
       ))
       .groupBy(sql`to_char(to_timestamp(${zapEvents.timestamp}), 'YYYY-MM-DD')`)
