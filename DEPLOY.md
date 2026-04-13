@@ -293,3 +293,4 @@ tail -f logs | grep "[ingestion]"
 5. **Alerting** — No email/Zap alerts when hitting trending. Post-launch feature.
 
 6. **NIP-07 challenge storage** — Challenges stored in-process, don't survive server restarts or multi-instance deploys. Use Redis or KV store for production at scale.
+# Deployed: Mon 13 Apr 14:31:11 UTC 2026
